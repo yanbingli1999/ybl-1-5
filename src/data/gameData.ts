@@ -77,6 +77,54 @@ export interface DiagnosisResult {
   errorType: 'action' | 'medicine' | 'funds' | null
 }
 
+export type ViolationType = 'misdiagnosis' | 'expired_medicine' | 'broken_equipment' | 'unlicensed_practice' | 'record_falsification'
+
+export interface Regulation {
+  id: string
+  code: string
+  name: string
+  description: string
+  violationType: ViolationType
+  baseFine: number
+  rectificationRequirement: string
+  severity: 'minor' | 'moderate' | 'severe'
+}
+
+export interface ViolationRecord {
+  id: string
+  caseId: string | null
+  regulationId: string
+  violationType: ViolationType
+  petName: string | null
+  timestamp: number
+  description: string
+  riskPoints: number
+  resolved: boolean
+}
+
+export type AuditStatus = 'pending' | 'approved' | 'fined' | 'rectification'
+
+export interface AuditRecord {
+  id: string
+  auditNumber: string
+  timestamp: number
+  inspectorName: string
+  status: AuditStatus
+  totalFine: number
+  violationsFound: ViolationRecord[]
+  rectificationDeadline: number | null
+  releaseNotes: string | null
+}
+
+export interface RegulatoryRisk {
+  currentRiskLevel: number
+  maxRiskLevel: number
+  riskHistory: { timestamp: number; change: number; reason: string }[]
+  auditsCompleted: number
+  totalFinesPaid: number
+  currentRectifications: string[]
+}
+
 export const breeds: Breed[] = [
   { id: 'slime', name: '黏液球', emoji: '🟢', color: '#00ff88', shape: 'blob' },
   { id: 'tentacle', name: '触手怪', emoji: '🟣', color: '#7b61ff', shape: 'tentacles' },
@@ -186,6 +234,166 @@ export function generatePetCase(): PetCase {
 
 export function generateInitialCases(count: number): PetCase[] {
   return Array.from({ length: count }, () => generatePetCase())
+}
+
+export const regulations: Regulation[] = [
+  {
+    id: 'reg_misdiagnosis_1',
+    code: 'SMC-001',
+    name: '星际医疗诊断规范法',
+    description: '诊断必须符合症状对应疾病，严禁因疏忽导致误诊',
+    violationType: 'misdiagnosis',
+    baseFine: 50,
+    rectificationRequirement: '重新学习《星际兽医诊断手册》第三章，提交不少于500字的诊断心得',
+    severity: 'moderate',
+  },
+  {
+    id: 'reg_misdiagnosis_2',
+    code: 'SMC-002',
+    name: '外星宠物医疗责任法',
+    description: '误诊造成宠物伤害需承担医疗责任',
+    violationType: 'misdiagnosis',
+    baseFine: 80,
+    rectificationRequirement: '赔偿宠物主人精神损失，并在星际医疗平台公开致歉',
+    severity: 'severe',
+  },
+  {
+    id: 'reg_medicine_1',
+    code: 'PHX-007',
+    name: '星际药品管理条例',
+    description: '严禁使用过期或伪劣药品，药品需从正规渠道采购',
+    violationType: 'expired_medicine',
+    baseFine: 60,
+    rectificationRequirement: '销毁所有库存过期药品，从认证供应商重新采购并建立药品效期台账',
+    severity: 'severe',
+  },
+  {
+    id: 'reg_medicine_2',
+    code: 'PHX-015',
+    name: '处方药品使用规范',
+    description: '用药错误属于违规操作，需按疾病类型正确配药',
+    violationType: 'expired_medicine',
+    baseFine: 45,
+    rectificationRequirement: '参加星际药品培训课程并通过考核（80分以上）',
+    severity: 'moderate',
+  },
+  {
+    id: 'reg_equipment_1',
+    code: 'EQP-023',
+    name: '医疗设备维护法',
+    description: '医疗设备必须保持良好状态，损坏设备需立即维修或更换',
+    violationType: 'broken_equipment',
+    baseFine: 70,
+    rectificationRequirement: '在48小时内修复所有损坏设备，制定设备每周巡检制度',
+    severity: 'moderate',
+  },
+  {
+    id: 'reg_equipment_2',
+    code: 'EQP-041',
+    name: '星际医疗安全标准',
+    description: '使用损坏设备进行诊疗构成重大安全隐患',
+    violationType: 'broken_equipment',
+    baseFine: 100,
+    rectificationRequirement: '停业整顿24小时，接受设备安全专项培训',
+    severity: 'severe',
+  },
+  {
+    id: 'reg_practice_1',
+    code: 'LIC-009',
+    name: '无照经营处罚条例',
+    description: '违规操作记录过多可能被吊销行医执照',
+    violationType: 'unlicensed_practice',
+    baseFine: 150,
+    rectificationRequirement: '重新申请行医执照，缴纳保证金并接受6个月监管期',
+    severity: 'severe',
+  },
+  {
+    id: 'reg_record_1',
+    code: 'REC-017',
+    name: '医疗记录真实性法',
+    description: '医疗记录必须真实完整，严禁篡改或隐瞒',
+    violationType: 'record_falsification',
+    baseFine: 120,
+    rectificationRequirement: '接受星际审计局全面核查，所有记录需第三方公证',
+    severity: 'severe',
+  },
+]
+
+const inspectorNames = [
+  '天狼星·杰克', '仙女座·露娜', '猎户座·马克', '半人马·艾琳',
+  '织女星·诺娃', '北冕座·索尔', '天蝎座·瑞德', '天琴座·薇薇',
+]
+
+let auditCounter = 0
+let violationCounter = 0
+
+export function getRegulation(id: string): Regulation | undefined {
+  return regulations.find(r => r.id === id)
+}
+
+export function getRegulationsByViolation(type: ViolationType): Regulation[] {
+  return regulations.filter(r => r.violationType === type)
+}
+
+export function getRandomInspector(): string {
+  return inspectorNames[Math.floor(Math.random() * inspectorNames.length)]
+}
+
+export function generateAuditNumber(): string {
+  auditCounter++
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `AUD-${year}${month}-${String(auditCounter).padStart(4, '0')}`
+}
+
+export function generateViolationRecord(
+  caseId: string | null,
+  regulationId: string,
+  violationType: ViolationType,
+  petName: string | null,
+  description: string,
+  riskPoints: number
+): ViolationRecord {
+  violationCounter++
+  return {
+    id: `vio_${Date.now()}_${violationCounter}`,
+    caseId,
+    regulationId,
+    violationType,
+    petName,
+    timestamp: Date.now(),
+    description,
+    riskPoints,
+    resolved: false,
+  }
+}
+
+export function getRiskLevelLabel(level: number, max: number): { label: string; color: string } {
+  const ratio = level / max
+  if (ratio < 0.2) return { label: '安全', color: 'text-green-400' }
+  if (ratio < 0.4) return { label: '低风险', color: 'text-lime-400' }
+  if (ratio < 0.6) return { label: '中风险', color: 'text-yellow-400' }
+  if (ratio < 0.8) return { label: '高风险', color: 'text-orange-400' }
+  return { label: '极高风险', color: 'text-red-500' }
+}
+
+export function getViolationTypeLabel(type: ViolationType): string {
+  switch (type) {
+    case 'misdiagnosis': return '误诊'
+    case 'expired_medicine': return '用药错误'
+    case 'broken_equipment': return '设备损坏'
+    case 'unlicensed_practice': return '违规执业'
+    case 'record_falsification': return '记录不实'
+  }
+}
+
+export function getSeverityLabel(severity: Regulation['severity']): { label: string; color: string; bg: string } {
+  switch (severity) {
+    case 'minor': return { label: '轻微', color: 'text-green-400', bg: 'bg-green-900/30 border-green-700/30' }
+    case 'moderate': return { label: '中等', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-700/30' }
+    case 'severe': return { label: '严重', color: 'text-red-400', bg: 'bg-red-900/30 border-red-700/30' }
+  }
 }
 
 export function generateTestCases(): PetCase[] {

@@ -5,6 +5,8 @@ import AccidentOverlay from '@/components/AccidentOverlay'
 import EquipmentPanel from '@/components/EquipmentPanel'
 import PlayerProgress from '@/components/PlayerProgress'
 import DiagnosisResult from '@/components/DiagnosisResult'
+import RegulatoryRiskPanel from '@/components/RegulatoryRiskPanel'
+import AuditPanel from '@/components/AuditPanel'
 import { useGameStore } from '@/store/useGameStore'
 import { getBreed } from '@/data/gameData'
 import { Cross, Zap, FlaskConical } from 'lucide-react'
@@ -113,11 +115,15 @@ export default function Home() {
           <div className="border-t border-gray-800/50 pt-4">
             <EquipmentPanel />
           </div>
+          <div className="border-t border-gray-800/50 pt-4">
+            <RegulatoryRiskPanel />
+          </div>
         </aside>
       </div>
 
       <AccidentOverlay />
       <DiagnosisResult />
+      <AuditPanel />
     </div>
   )
 }

@@ -7,12 +7,23 @@ import {
   type DiagnosisResult,
   type ActionType,
   type AccidentType,
+  type Regulation,
+  type ViolationRecord,
+  type ViolationType,
+  type AuditRecord,
+  type RegulatoryRisk,
   initialEquipment,
   generatePetCase,
   generateInitialCases,
   generateTestCases,
   getDisease,
   getMedicine,
+  getRegulation,
+  getRegulationsByViolation,
+  generateViolationRecord,
+  generateAuditNumber,
+  getRandomInspector,
+  regulations,
 } from '@/data/gameData'
 
 interface GameState {
@@ -27,6 +38,14 @@ interface GameState {
   selectedMedicineId: string | null
   showMedicineSelector: boolean
   pendingAction: 'medicate' | 'inject' | 'feed' | null
+
+  regulatoryRisk: RegulatoryRisk
+  violationRecords: ViolationRecord[]
+  auditRecords: AuditRecord[]
+  currentAudit: AuditRecord | null
+  showAuditPanel: boolean
+  auditSessionViolations: ViolationRecord[]
+  auditSubmissionNotes: string
 
   selectCase: (id: string) => void
   examine: () => void
@@ -43,6 +62,17 @@ interface GameState {
   generateNewCase: () => void
   loadTestCases: () => void
   resetGame: () => void
+
+  addRisk: (amount: number, reason: string) => void
+  reduceRisk: (amount: number, reason: string) => void
+  addViolation: (type: ViolationType, caseId: string | null, petName: string | null, description: string, riskPoints: number) => void
+  triggerRandomAudit: () => void
+  addAuditSessionViolation: (regulationId: string, description: string, riskPoints: number) => void
+  removeAuditSessionViolation: (vioId: string) => void
+  setAuditSubmissionNotes: (notes: string) => void
+  submitAudit: () => void
+  dismissAudit: () => void
+  clearCurrentRectification: (index: number) => void
 }
 
 const initialPlayer: Player = {
@@ -52,6 +82,15 @@ const initialPlayer: Player = {
   cured: 0,
   misdiagnosed: 0,
   totalIncome: 0,
+}
+
+const initialRegulatoryRisk: RegulatoryRisk = {
+  currentRiskLevel: 0,
+  maxRiskLevel: 100,
+  riskHistory: [],
+  auditsCompleted: 0,
+  totalFinesPaid: 0,
+  currentRectifications: [],
 }
 
 const expPerLevel = 100
@@ -82,6 +121,15 @@ function getActionLabel(action: ActionType): string {
   }
 }
 
+function shouldTriggerAudit(riskLevel: number, casesHandled: number, lastAuditCases: number): boolean {
+  const riskChance = riskLevel / 200
+  const timeChance = (casesHandled - lastAuditCases) / 20
+  return Math.random() < (riskChance + timeChance) && (casesHandled - lastAuditCases) >= 3
+}
+
+let lastAuditCaseCount = 0
+let totalCasesHandled = 0
+
 export const useGameStore = create<GameState>((set, get) => ({
   cases: generateInitialCases(5),
   activeCaseId: null,
@@ -100,6 +148,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectedMedicineId: null,
   showMedicineSelector: false,
   pendingAction: null,
+
+  regulatoryRisk: { ...initialRegulatoryRisk },
+  violationRecords: [],
+  auditRecords: [],
+  currentAudit: null,
+  showAuditPanel: false,
+  auditSessionViolations: [],
+  auditSubmissionNotes: '',
 
   selectCase: (id: string) => {
     const state = get()
@@ -289,10 +345,35 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (medicineCost > 0) {
           message += `（扣除${itemType}费 ${medicineCost} ⬡）`
         }
+        get().addViolation(
+          'misdiagnosis',
+          activeCase.id,
+          activeCase.petName,
+          `对宠物「${activeCase.petName}」采取了错误的${getActionLabel(action)}操作，正确操作应为${getActionLabel(disease.correctAction)}`,
+          activeCase.urgency === 'high' ? 15 : activeCase.urgency === 'medium' ? 10 : 6
+        )
       } else if (errorType === 'medicine') {
         const correctMed = disease.medicineId ? getMedicine(disease.medicineId) : null
         const usedMed = medicineId ? getMedicine(medicineId) : null
         message = `用错${itemType}了！${activeCase.petName} 患的是「${disease.name}」，应该用「${correctMed?.name || '正确物品'}」而不是「${usedMed?.name || '未知物品'}」！（扣除${itemType}费 ${medicineCost} ⬡）`
+        get().addViolation(
+          'expired_medicine',
+          activeCase.id,
+          activeCase.petName,
+          `对宠物「${activeCase.petName}」使用了错误${itemType}「${usedMed?.name || '未知'}」，正确药品应为「${correctMed?.name || '指定药品'}」`,
+          activeCase.urgency === 'high' ? 12 : activeCase.urgency === 'medium' ? 8 : 5
+        )
+      }
+
+      if (damagedEquipId) {
+        const equipName = state.equipment.find(e => e.id === damagedEquipId)?.name || '未知设备'
+        get().addViolation(
+          'broken_equipment',
+          activeCase.id,
+          activeCase.petName,
+          `宠物「${activeCase.petName}」咬坏了设备「${equipName}」，未及时维护诊疗设备存在安全隐患`,
+          10
+        )
       }
 
       const result: DiagnosisResult = {
@@ -352,12 +433,19 @@ export const useGameStore = create<GameState>((set, get) => ({
       remainingCases.push(generatePetCase())
     }
 
+    totalCasesHandled++
+    get().reduceRisk(2, '成功完成诊疗')
+
     set({
       activeCaseId: null,
       gamePhase: 'idle',
       diagnosisResult: null,
       cases: remainingCases,
     })
+
+    if (shouldTriggerAudit(get().regulatoryRisk.currentRiskLevel, totalCasesHandled, lastAuditCaseCount)) {
+      setTimeout(() => get().triggerRandomAudit(), 800)
+    }
   },
 
   dismissAccident: () => {
@@ -367,6 +455,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       remainingCases.push(generatePetCase())
     }
 
+    totalCasesHandled++
+
     set({
       activeCaseId: null,
       gamePhase: 'idle',
@@ -374,6 +464,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       diagnosisResult: null,
       cases: remainingCases,
     })
+
+    if (shouldTriggerAudit(get().regulatoryRisk.currentRiskLevel, totalCasesHandled, lastAuditCaseCount)) {
+      setTimeout(() => get().triggerRandomAudit(), 800)
+    }
   },
 
   generateNewCase: () => {
@@ -396,6 +490,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   resetGame: () => {
+    totalCasesHandled = 0
+    lastAuditCaseCount = 0
     set({
       cases: generateInitialCases(5),
       activeCaseId: null,
@@ -414,6 +510,210 @@ export const useGameStore = create<GameState>((set, get) => ({
       showMedicineSelector: false,
       selectedMedicineId: null,
       pendingAction: null,
+      regulatoryRisk: { ...initialRegulatoryRisk },
+      violationRecords: [],
+      auditRecords: [],
+      currentAudit: null,
+      showAuditPanel: false,
+      auditSessionViolations: [],
+      auditSubmissionNotes: '',
     })
+  },
+
+  addRisk: (amount: number, reason: string) => {
+    const state = get()
+    const newLevel = Math.min(state.regulatoryRisk.maxRiskLevel, state.regulatoryRisk.currentRiskLevel + amount)
+    set({
+      regulatoryRisk: {
+        ...state.regulatoryRisk,
+        currentRiskLevel: newLevel,
+        riskHistory: [
+          ...state.regulatoryRisk.riskHistory.slice(-49),
+          { timestamp: Date.now(), change: amount, reason },
+        ],
+      },
+    })
+  },
+
+  reduceRisk: (amount: number, reason: string) => {
+    const state = get()
+    const newLevel = Math.max(0, state.regulatoryRisk.currentRiskLevel - amount)
+    set({
+      regulatoryRisk: {
+        ...state.regulatoryRisk,
+        currentRiskLevel: newLevel,
+        riskHistory: [
+          ...state.regulatoryRisk.riskHistory.slice(-49),
+          { timestamp: Date.now(), change: -amount, reason },
+        ],
+      },
+    })
+  },
+
+  addViolation: (type: ViolationType, caseId: string | null, petName: string | null, description: string, riskPoints: number) => {
+    const state = get()
+    const regs = getRegulationsByViolation(type)
+    const regulation = regs[Math.floor(Math.random() * regs.length)] || regulations[0]
+    const record = generateViolationRecord(caseId, regulation.id, type, petName, description, riskPoints)
+    set({
+      violationRecords: [...state.violationRecords, record],
+    })
+    get().addRisk(riskPoints, `违规：${description.slice(0, 20)}...`)
+  },
+
+  triggerRandomAudit: () => {
+    const state = get()
+    if (state.showAuditPanel) return
+
+    lastAuditCaseCount = totalCasesHandled
+    const newAudit: AuditRecord = {
+      id: `audit_${Date.now()}`,
+      auditNumber: generateAuditNumber(),
+      timestamp: Date.now(),
+      inspectorName: getRandomInspector(),
+      status: 'pending',
+      totalFine: 0,
+      violationsFound: [],
+      rectificationDeadline: null,
+      releaseNotes: null,
+    }
+
+    const sessionVios: ViolationRecord[] = []
+    const riskRatio = state.regulatoryRisk.currentRiskLevel / state.regulatoryRisk.maxRiskLevel
+    const violationCount = Math.min(
+      state.violationRecords.filter(v => !v.resolved).length,
+      Math.max(0, Math.floor(Math.random() * 4) + (riskRatio > 0.5 ? 1 : 0))
+    )
+
+    const unresolved = [...state.violationRecords.filter(v => !v.resolved)].reverse()
+    for (let i = 0; i < violationCount && i < unresolved.length; i++) {
+      sessionVios.push({ ...unresolved[i] })
+    }
+
+    set({
+      currentAudit: newAudit,
+      showAuditPanel: true,
+      auditSessionViolations: sessionVios,
+      auditSubmissionNotes: '',
+    })
+  },
+
+  addAuditSessionViolation: (regulationId: string, description: string, riskPoints: number) => {
+    const state = get()
+    const reg = getRegulation(regulationId)
+    if (!reg) return
+    const record = generateViolationRecord(null, regulationId, reg.violationType, null, description, riskPoints)
+    set({
+      auditSessionViolations: [...state.auditSessionViolations, record],
+      violationRecords: [...state.violationRecords, record],
+    })
+    get().addRisk(riskPoints, `审查中发现：${description.slice(0, 20)}`)
+  },
+
+  removeAuditSessionViolation: (vioId: string) => {
+    const state = get()
+    set({
+      auditSessionViolations: state.auditSessionViolations.filter(v => v.id !== vioId),
+    })
+  },
+
+  setAuditSubmissionNotes: (notes: string) => {
+    set({ auditSubmissionNotes: notes })
+  },
+
+  submitAudit: () => {
+    const state = get()
+    if (!state.currentAudit) return
+
+    let totalFine = 0
+    const rectifications: string[] = []
+
+    state.auditSessionViolations.forEach(vio => {
+      const reg = getRegulation(vio.regulationId)
+      if (reg) {
+        const severityMultiplier = reg.severity === 'severe' ? 1.5 : reg.severity === 'moderate' ? 1 : 0.7
+        const fine = Math.floor(reg.baseFine * severityMultiplier)
+        totalFine += fine
+        if (!rectifications.includes(reg.rectificationRequirement)) {
+          rectifications.push(reg.rectificationRequirement)
+        }
+      }
+    })
+
+    const honestyBonus = state.auditSubmissionNotes.length > 30 ? 0.9 : 1
+    totalFine = Math.floor(totalFine * honestyBonus)
+
+    const newStatus = totalFine > 200 ? 'rectification' : totalFine > 0 ? 'fined' : 'approved'
+    const releaseNotes = newStatus === 'approved'
+      ? `本次抽查结果：合规性良好，${state.auditSubmissionNotes.length > 30 ? '整改态度诚恳，' : ''}予以放行。`
+      : newStatus === 'fined'
+        ? `本次抽查发现 ${state.auditSessionViolations.length} 项违规，已处罚并要求加强管理。`
+        : `本次抽查违规情况较严重（${state.auditSessionViolations.length}项），需立即整改并接受复查。`
+
+    const completedAudit: AuditRecord = {
+      ...state.currentAudit,
+      status: newStatus,
+      totalFine,
+      violationsFound: state.auditSessionViolations,
+      rectificationDeadline: newStatus === 'rectification' ? Date.now() + 7 * 24 * 60 * 60 * 1000 : null,
+      releaseNotes,
+    }
+
+    const updatedViolations = state.violationRecords.map(v => {
+      const inSession = state.auditSessionViolations.find(sv => sv.id === v.id)
+      return inSession ? { ...v, resolved: true } : v
+    })
+
+    const newRectifications = [...state.regulatoryRisk.currentRectifications]
+    rectifications.forEach(r => {
+      if (!newRectifications.includes(r)) newRectifications.push(r)
+    })
+
+    set({
+      currentAudit: completedAudit,
+      auditRecords: [...state.auditRecords, completedAudit],
+      player: {
+        ...state.player,
+        coins: Math.max(0, state.player.coins - totalFine),
+      },
+      violationRecords: updatedViolations,
+      regulatoryRisk: {
+        ...state.regulatoryRisk,
+        auditsCompleted: state.regulatoryRisk.auditsCompleted + 1,
+        totalFinesPaid: state.regulatoryRisk.totalFinesPaid + totalFine,
+        currentRectifications: newRectifications,
+        currentRiskLevel: Math.max(0, state.regulatoryRisk.currentRiskLevel - 10),
+      },
+    })
+  },
+
+  dismissAudit: () => {
+    set({
+      showAuditPanel: false,
+      auditSessionViolations: [],
+      auditSubmissionNotes: '',
+    })
+    setTimeout(() => {
+      const state = get()
+      if (state.regulatoryRisk.currentRiskLevel > 60) {
+        get().reduceRisk(15, '审查后采取整改措施')
+      } else if (state.regulatoryRisk.currentRiskLevel > 30) {
+        get().reduceRisk(10, '审查结束，继续合规经营')
+      } else {
+        get().reduceRisk(5, '审查通过')
+      }
+    }, 500)
+  },
+
+  clearCurrentRectification: (index: number) => {
+    const state = get()
+    const newRects = state.regulatoryRisk.currentRectifications.filter((_, i) => i !== index)
+    set({
+      regulatoryRisk: {
+        ...state.regulatoryRisk,
+        currentRectifications: newRects,
+      },
+    })
+    get().reduceRisk(8, '完成整改项')
   },
 }))
