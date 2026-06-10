@@ -106,11 +106,12 @@ export default function RegulatoryRiskPanel() {
               <div key={v.id} className="text-[10px] flex items-start gap-1">
                 <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
                   v.violationType === 'misdiagnosis' ? 'bg-red-900/40 text-red-300' :
+                  v.violationType === 'expired_medicine' && v.description.includes('过期') ? 'bg-orange-900/40 text-orange-300' :
                   v.violationType === 'expired_medicine' ? 'bg-purple-900/40 text-purple-300' :
-                  v.violationType === 'broken_equipment' ? 'bg-orange-900/40 text-orange-300' :
+                  v.violationType === 'broken_equipment' ? 'bg-yellow-900/40 text-yellow-300' :
                   'bg-gray-700 text-gray-300'
                 }`}>
-                  {getViolationTypeLabel(v.violationType)}
+                  {getViolationTypeLabel(v.violationType, v.description)}
                 </span>
                 <span className="text-gray-400 line-clamp-1">
                   {v.petName ? `${v.petName}: ` : ''}{v.description.slice(0, 30)}

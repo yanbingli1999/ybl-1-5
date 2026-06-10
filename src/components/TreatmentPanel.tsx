@@ -111,15 +111,24 @@ export default function TreatmentPanel() {
               <button
                 key={med.id}
                 onClick={() => selectMedicine(med.id)}
-                className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/60 border border-gray-700/40 hover:border-purple-600/40 transition-all text-left"
+                className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/60 border border-gray-700/40 hover:border-purple-600/40 transition-all text-left group"
               >
                 <div
                   className="w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: med.color, boxShadow: `0 0 8px ${med.color}40` }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs text-gray-200">{med.name}</div>
-                  <div className="text-[10px] text-gray-500">{med.effect}</div>
+                  <div className="text-xs text-gray-200 flex items-center gap-1.5">
+                    {med.name}
+                    {med.expiryChance >= 0.2 && (
+                      <span className="text-[9px] px-1 rounded bg-orange-900/40 text-orange-400 group-hover:bg-orange-900/60 transition-colors">
+                        ⚠️ 高过期风险
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-gray-500">
+                    {med.effect} · 过期率 {Math.round(med.expiryChance * 100)}%
+                  </div>
                 </div>
                 <span className="text-[10px] text-yellow-500">{med.cost} ⬡</span>
               </button>

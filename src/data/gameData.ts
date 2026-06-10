@@ -21,6 +21,8 @@ export interface Medicine {
   effect: string
   color: string
   cost: number
+  expiryChance: number
+  riskPoints: number
 }
 
 export interface Symptom {
@@ -75,6 +77,7 @@ export interface DiagnosisResult {
   damagedEquipment: string | null
   message: string
   errorType: 'action' | 'medicine' | 'funds' | null
+  isExpiredMedicine: boolean
 }
 
 export type ViolationType = 'misdiagnosis' | 'expired_medicine' | 'broken_equipment' | 'unlicensed_practice' | 'record_falsification'
@@ -144,11 +147,11 @@ export const diseases: Disease[] = [
 ]
 
 export const medicines: Medicine[] = [
-  { id: 'stabilizer', name: '稳定剂', effect: '阻止分裂', color: '#00ff88', cost: 30 },
-  { id: 'gravity_pill', name: '重力丸', effect: '恢复引力', color: '#7b61ff', cost: 25 },
-  { id: 'cosmic_kibble', name: '宇宙粮', effect: '满足饥饿', color: '#ff8855', cost: 15 },
-  { id: 'soft_syrup', name: '软化糖浆', effect: '溶解晶体', color: '#00d4ff', cost: 35 },
-  { id: 'shine_serum', name: '闪光血清', effect: '驱散暗影', color: '#ffdd00', cost: 40 },
+  { id: 'stabilizer', name: '稳定剂', effect: '阻止分裂', color: '#00ff88', cost: 30, expiryChance: 0.15, riskPoints: 8 },
+  { id: 'gravity_pill', name: '重力丸', effect: '恢复引力', color: '#7b61ff', cost: 25, expiryChance: 0.18, riskPoints: 7 },
+  { id: 'cosmic_kibble', name: '宇宙粮', effect: '满足饥饿', color: '#ff8855', cost: 15, expiryChance: 0.25, riskPoints: 5 },
+  { id: 'soft_syrup', name: '软化糖浆', effect: '溶解晶体', color: '#00d4ff', cost: 35, expiryChance: 0.20, riskPoints: 9 },
+  { id: 'shine_serum', name: '闪光血清', effect: '驱散暗影', color: '#ffdd00', cost: 40, expiryChance: 0.12, riskPoints: 10 },
 ]
 
 export const symptoms: Symptom[] = [
@@ -378,7 +381,10 @@ export function getRiskLevelLabel(level: number, max: number): { label: string; 
   return { label: '极高风险', color: 'text-red-500' }
 }
 
-export function getViolationTypeLabel(type: ViolationType): string {
+export function getViolationTypeLabel(type: ViolationType, description?: string): string {
+  if (type === 'expired_medicine' && description?.includes('过期')) {
+    return '药品过期'
+  }
   switch (type) {
     case 'misdiagnosis': return '误诊'
     case 'expired_medicine': return '用药错误'

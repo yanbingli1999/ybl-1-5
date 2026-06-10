@@ -319,11 +319,12 @@ export default function AuditPanel() {
                                 <div className="flex items-center flex-wrap gap-1.5 mb-1">
                                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                                     vio.violationType === 'misdiagnosis' ? 'bg-red-900/50 text-red-300' :
+                                    vio.violationType === 'expired_medicine' && vio.description.includes('过期') ? 'bg-orange-900/50 text-orange-300' :
                                     vio.violationType === 'expired_medicine' ? 'bg-purple-900/50 text-purple-300' :
-                                    vio.violationType === 'broken_equipment' ? 'bg-orange-900/50 text-orange-300' :
+                                    vio.violationType === 'broken_equipment' ? 'bg-yellow-900/50 text-yellow-300' :
                                     'bg-gray-700 text-gray-300'
                                   }`}>
-                                    {getViolationTypeLabel(vio.violationType)}
+                                    {getViolationTypeLabel(vio.violationType, vio.description)}
                                   </span>
                                   {reg && sev && (
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${sev.bg} ${sev.color} border`}>
@@ -471,6 +472,15 @@ export default function AuditPanel() {
                             <div className="flex items-start justify-between gap-2 mb-1.5">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[10px] text-gray-500">#{idx + 1}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                  vio.violationType === 'misdiagnosis' ? 'bg-red-900/50 text-red-300' :
+                                  vio.violationType === 'expired_medicine' && vio.description.includes('过期') ? 'bg-orange-900/50 text-orange-300' :
+                                  vio.violationType === 'expired_medicine' ? 'bg-purple-900/50 text-purple-300' :
+                                  vio.violationType === 'broken_equipment' ? 'bg-yellow-900/50 text-yellow-300' :
+                                  'bg-gray-700 text-gray-300'
+                                }`}>
+                                  {getViolationTypeLabel(vio.violationType, vio.description)}
+                                </span>
                                 {reg && sev && (
                                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${sev.bg} ${sev.color} border`}>
                                     {sev.label}

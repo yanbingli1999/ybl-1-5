@@ -1,6 +1,6 @@
 import { useGameStore } from '@/store/useGameStore'
 import { getMedicine } from '@/data/gameData'
-import { CheckCircle, XCircle, ArrowRight, Pill, AlertCircle, Coins } from 'lucide-react'
+import { CheckCircle, XCircle, ArrowRight, Pill, AlertCircle, Coins, AlertTriangle } from 'lucide-react'
 
 export default function DiagnosisResult() {
   const diagnosisResult = useGameStore(s => s.diagnosisResult)
@@ -69,6 +69,26 @@ export default function DiagnosisResult() {
                 <p className="text-xs text-yellow-300">
                   请赚取更多星币后再尝试，或选择其他治疗方式
                 </p>
+              </div>
+            </>
+          ) : diagnosisResult.isExpiredMedicine ? (
+            <>
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-orange-900/30 border border-orange-600/30 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-orange-400 animate-pulse" />
+              </div>
+              <h2 className="font-display text-xl text-orange-400 tracking-wider mb-1">
+                ⚠️ 药品过期
+              </h2>
+              <p className="text-sm text-gray-300 mb-3">{diagnosisResult.message}</p>
+              <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-800/40 space-y-2">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-orange-300">
+                  <span className="text-base">☣️</span>
+                  <span className="font-medium">药品质量不达标，已被监管系统记录违规</span>
+                </div>
+                <div className="flex items-center justify-center gap-1 text-[10px] text-red-400 pt-1 border-t border-orange-800/30">
+                  <AlertCircle className="w-2.5 h-2.5" />
+                  <span>罚款 {Math.abs(diagnosisResult.coinsEarned)} ⬡ · 风险 +{usedMed?.riskPoints || 0}</span>
+                </div>
               </div>
             </>
           ) : (

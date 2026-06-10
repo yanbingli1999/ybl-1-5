@@ -229,6 +229,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         damagedEquipment: null,
         message: `星币不足！${medicine.name} 需要 ${medicine.cost} ⬡，你只有 ${state.player.coins} ⬡`,
         errorType: 'funds',
+        isExpiredMedicine: false,
       }
 
       set({
@@ -265,11 +266,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     const medicineCorrect = !needsMedicine || (medicineId !== undefined && medicineId === disease.medicineId)
     const medicineCost = medicine?.cost || 0
 
+    const isExpiredMedicine = medicine ? Math.random() < medicine.expiryChance : false
+
     let errorType: 'action' | 'medicine' | null = null
     if (!actionCorrect) errorType = 'action'
     else if (actionCorrect && !medicineCorrect) errorType = 'medicine'
 
-    const isCorrect = actionCorrect && medicineCorrect
+    const isCorrect = actionCorrect && medicineCorrect && !isExpiredMedicine
+
+    if (isExpiredMedicine && medicine) {
+      get().addViolation(
+        'expired_medicine',
+        activeCase.id,
+        activeCase.petName,
+        `对宠物「${activeCase.petName}」使用了过期${action === 'feed' ? '食物' : '药品'}「${medicine.name}」，违反星际药品管理条例`,
+        medicine.riskPoints
+      )
+    }
 
     if (isCorrect) {
       const coinsEarned = getCoinsForUrgency(activeCase.urgency)
@@ -303,6 +316,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         damagedEquipment: null,
         message,
         errorType: null,
+        isExpiredMedicine: false,
       }
 
       set({
@@ -324,7 +338,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     } else {
       const penalty = getPenaltyForAccident(activeCase.urgency)
       const totalDeduction = penalty + medicineCost
-      const damagedEquipId = disease.accidentType === 'bite'
+      const damagedEquipId = (!isExpiredMedicine && disease.accidentType === 'bite')
         ? requiredEquip?.id || null
         : null
 
@@ -340,7 +354,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       let message = ''
       const itemType = action === 'feed' ? '食物' : action === 'inject' ? '注射剂' : '药品'
-      if (errorType === 'action') {
+      
+      if (isExpiredMedicine && medicine) {
+        message = `⚠️ ${itemType}过期！「${medicine.name}」已变质，${activeCase.petName} 的「${disease.name}」治疗失败！（扣除${itemType}费 ${medicineCost} ⬡）`
+      } else if (errorType === 'action') {
         message = `误诊！${activeCase.petName} 患的是「${disease.name}」，应该${getActionLabel(disease.correctAction)}而不是${getActionLabel(action)}！`
         if (medicineCost > 0) {
           message += `（扣除${itemType}费 ${medicineCost} ⬡）`
@@ -385,10 +402,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         correctMedicine: disease.medicineId,
         coinsEarned: -totalDeduction,
         medicineCost,
-        accidentType: disease.accidentType,
+        accidentType: isExpiredMedicine ? null : disease.accidentType,
         damagedEquipment: damagedEquipId,
         message,
-        errorType,
+        errorType: isExpiredMedicine ? 'medicine' : errorType,
+        isExpiredMedicine,
       }
 
       set({
@@ -399,8 +417,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           coins: Math.max(0, state.player.coins - totalDeduction),
           misdiagnosed: state.player.misdiagnosed + 1,
         },
-        gamePhase: 'accident',
-        accidentType: disease.accidentType,
+        gamePhase: isExpiredMedicine ? 'result' : 'accident',
+        accidentType: isExpiredMedicine ? null : disease.accidentType,
         diagnosisResult: result,
         showMedicineSelector: false,
         selectedMedicineId: null,
