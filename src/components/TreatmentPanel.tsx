@@ -28,6 +28,8 @@ export default function TreatmentPanel() {
   const isolate = useGameStore(s => s.isolate)
   const selectMedicine = useGameStore(s => s.selectMedicine)
   const cancelMedicineSelect = useGameStore(s => s.cancelMedicineSelect)
+  const forceExpiredMedicine = useGameStore(s => s.forceExpiredMedicine)
+  const toggleForceExpiredMedicine = useGameStore(s => s.toggleForceExpiredMedicine)
 
   const selectorTitle = pendingAction === 'feed' ? '选择食物' : pendingAction === 'inject' ? '选择注射剂' : '选择药品'
 
@@ -105,32 +107,76 @@ export default function TreatmentPanel() {
           >
             <X className="w-4 h-4" />
           </button>
-          <h4 className="text-xs text-purple-400 mb-2 font-display tracking-wide">{selectorTitle}</h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs text-purple-400 font-display tracking-wide">{selectorTitle}</h4>
+            <button
+              onClick={toggleForceExpiredMedicine}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-colors ${
+                forceExpiredMedicine
+                  ? 'bg-orange-900/60 text-orange-300 border border-orange-600/50'
+                  : 'bg-gray-700/40 text-gray-400 border border-gray-600/30 hover:bg-gray-700/60'
+              }`}
+              title="测试模式：强制所有药品过期，用于验证过期药违规流程"
+            >
+              {forceExpiredMedicine ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                  强制过期
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                  测试模式
+                </>
+              )}
+            </button>
+          </div>
           <div className="grid grid-cols-1 gap-1.5">
             {medicines.map(med => (
               <button
                 key={med.id}
                 onClick={() => selectMedicine(med.id)}
-                className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/60 border border-gray-700/40 hover:border-purple-600/40 transition-all text-left group"
+                className={`flex items-center gap-3 p-2 rounded-lg transition-all text-left group relative overflow-hidden ${
+                  forceExpiredMedicine
+                    ? 'bg-orange-900/30 border border-orange-700/50 hover:border-orange-500/60'
+                    : 'bg-gray-800/60 border border-gray-700/40 hover:border-purple-600/40'
+                }`}
               >
+                {forceExpiredMedicine && (
+                  <div className="absolute top-0 right-0 bg-orange-500/80 text-white text-[9px] px-1.5 py-0.5 rounded-bl">
+                    过期
+                  </div>
+                )}
                 <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                    forceExpiredMedicine ? 'opacity-50 grayscale' : ''
+                  }`}
                   style={{ backgroundColor: med.color, boxShadow: `0 0 8px ${med.color}40` }}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-gray-200 flex items-center gap-1.5">
                     {med.name}
-                    {med.expiryChance >= 0.2 && (
-                      <span className="text-[9px] px-1 rounded bg-orange-900/40 text-orange-400 group-hover:bg-orange-900/60 transition-colors">
-                        ⚠️ 高过期风险
+                    {(forceExpiredMedicine || med.expiryChance >= 0.2) && (
+                      <span className={`text-[9px] px-1 rounded transition-colors ${
+                        forceExpiredMedicine
+                          ? 'bg-red-900/60 text-red-300'
+                          : 'bg-orange-900/40 text-orange-400 group-hover:bg-orange-900/60'
+                      }`}>
+                        {forceExpiredMedicine ? '☠️ 已过期' : '⚠️ 高过期风险'}
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-gray-500">
+                  <div className={`text-[10px] ${
+                    forceExpiredMedicine ? 'text-orange-400/70' : 'text-gray-500'
+                  }`}>
                     {med.effect} · 过期率 {Math.round(med.expiryChance * 100)}%
                   </div>
                 </div>
-                <span className="text-[10px] text-yellow-500">{med.cost} ⬡</span>
+                <span className={`text-[10px] ${
+                  forceExpiredMedicine ? 'text-orange-400/70 line-through' : 'text-yellow-500'
+                }`}>
+                  {med.cost} ⬡
+                </span>
               </button>
             ))}
           </div>

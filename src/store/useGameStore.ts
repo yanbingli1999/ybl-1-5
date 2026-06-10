@@ -46,6 +46,7 @@ interface GameState {
   showAuditPanel: boolean
   auditSessionViolations: ViolationRecord[]
   auditSubmissionNotes: string
+  forceExpiredMedicine: boolean
 
   selectCase: (id: string) => void
   examine: () => void
@@ -73,6 +74,7 @@ interface GameState {
   submitAudit: () => void
   dismissAudit: () => void
   clearCurrentRectification: (index: number) => void
+  toggleForceExpiredMedicine: () => void
 }
 
 const initialPlayer: Player = {
@@ -156,6 +158,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   showAuditPanel: false,
   auditSessionViolations: [],
   auditSubmissionNotes: '',
+  forceExpiredMedicine: false,
 
   selectCase: (id: string) => {
     const state = get()
@@ -266,7 +269,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const medicineCorrect = !needsMedicine || (medicineId !== undefined && medicineId === disease.medicineId)
     const medicineCost = medicine?.cost || 0
 
-    const isExpiredMedicine = medicine ? Math.random() < medicine.expiryChance : false
+    const isExpiredMedicine = medicine ? (state.forceExpiredMedicine || Math.random() < medicine.expiryChance) : false
 
     let errorType: 'action' | 'medicine' | null = null
     if (!actionCorrect) errorType = 'action'
@@ -535,7 +538,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       showAuditPanel: false,
       auditSessionViolations: [],
       auditSubmissionNotes: '',
+      forceExpiredMedicine: false,
     })
+  },
+
+  toggleForceExpiredMedicine: () => {
+    const state = get()
+    set({ forceExpiredMedicine: !state.forceExpiredMedicine })
   },
 
   addRisk: (amount: number, reason: string) => {
